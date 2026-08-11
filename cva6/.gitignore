@@ -33,6 +33,7 @@ corev_apu/fpga/work-fpga-copro
 corev_apu/fpga/reports/
 corev_apu/fpga/reports_copro/
 corev_apu/fpga/scripts/add_sources.tcl
+corev_apu/fpga/scripts/add_sources_core.tcl
 corev_apu/fpga/ariane.xpr
 corev_apu/fpga/ariane.cache/
 corev_apu/fpga/ariane.hw/

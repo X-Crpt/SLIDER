@@ -92,4 +92,3 @@ dependencies:
       - tzdata==2025.2
       - urllib3==2.5.0
       - zipp==3.23.0
-prefix: /home/alessandra.dolmeta/.conda/envs/cva6

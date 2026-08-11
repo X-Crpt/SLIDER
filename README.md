@@ -66,8 +66,55 @@ the full instruction set, microarchitecture, and timing tables.
 
 ## Building and running tests
 
-Toolchain setup (RISC-V GCC, Verilator, Spike) follows CVA6's own
-process — see `cva6/README.md`. Test entry points live under `sw/`:
+### 1. Python environment
+
+Follow CVA6's own process (`cva6/README.md`, "Python Environment"): create
+and activate the conda environment from the provided lock file, run from
+`cva6/`:
+
+```bash
+conda env create -f environment_lock.yml
+conda activate cva6
+```
+
+### 2. RISC-V toolchain, Verilator, Spike
+
+Simulation needs three tools that this repo does not vendor or assume a
+path for: a RISC-V GCC toolchain, Verilator, and Spike. Build them
+following CVA6's own guide (`cva6/README.md`, "RISC-V Toolchain and
+Verilator Setup"; full detail in `cva6/util/toolchain-builder/README.md`):
+
+```bash
+# RISC-V GCC (from cva6/util/toolchain-builder/)
+bash get-toolchain.sh gcc-13.1.0-baremetal
+bash build-toolchain.sh gcc-13.1.0-baremetal /path/to/install/riscv-toolchain
+
+# Verilator and Spike: see cva6/util/toolchain-builder/README.md and the
+# upstream Verilator (https://verilator.org/guide/latest/install.html) /
+# riscv-isa-sim (https://github.com/riscv-software-src/riscv-isa-sim)
+# install instructions.
+```
+
+### 3. Point the repo at your toolchain
+
+`cva6/verif/sim/setup-env.sh` is the file every test sources to find its
+tools. It does not hardcode a path — set these three yourself, either by
+exporting them in your shell before running a test, or by editing the
+three commented-out lines near the top of that file:
+
+```bash
+export RISCV="/path/to/your/riscv-toolchain"
+export VERILATOR_INSTALL_DIR="/path/to/your/verilator"
+export SPIKE_INSTALL_DIR="/path/to/your/spike"
+```
+
+If any of these is unset or doesn't exist, sourcing the file prints a
+clear error naming which one and stops (it won't silently use the wrong
+toolchain or close your shell if you `source` it directly).
+
+### 4. Run the tests
+
+Test entry points live under `sw/`:
 
 ```bash
 # Interactive picker for the focused unit tests

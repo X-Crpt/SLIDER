@@ -26,7 +26,8 @@ static const prf_variant_t k_variants[] = {
     {"SPHINCS+-256f-simple", 32, 1},
 };
 
-static int run_prf_case(const prf_variant_t *v, uint32_t *sw_cycles, uint32_t *hw_cycles) {
+static int run_prf_case(const prf_variant_t *v, uint32_t *sw_cycles, uint32_t *hw_cycles,
+                         uint32_t *sw_instret, uint32_t *hw_instret) {
     uint8_t pub_seed[32] = {0};
     uint8_t sk_seed[32] = {0};
     uint8_t addr[SPX_ADDR_BYTES] = {0};
@@ -36,6 +37,8 @@ static int run_prf_case(const prf_variant_t *v, uint32_t *sw_cycles, uint32_t *h
     uint8_t funct7 = spx_prf_funct7_for_n(v->n);
     uint32_t c_sw = 0;
     uint32_t c_hw = 0;
+    uint32_t i_sw = 0;
+    uint32_t i_hw = 0;
 
     spx_fill_bytes(pub_seed, v->n, (uint32_t)(0x1000 + v->n + (v->simple_mode * 17)));
     spx_fill_bytes(sk_seed, v->n, (uint32_t)(0x2000 + v->n + (v->simple_mode * 31)));
@@ -44,19 +47,29 @@ static int run_prf_case(const prf_variant_t *v, uint32_t *sw_cycles, uint32_t *h
 
 #if SW_TEST_ENABLED
     write_csr(mcycle, 0);
+    write_csr(minstret, 0);
     spx_ref_prf(out_sw, pub_seed, sk_seed, addr, v->n);
     c_sw = (uint32_t)read_csr(mcycle);
+    i_sw = (uint32_t)read_csr(minstret);
 #endif
 
     write_csr(mcycle, 0);
+    write_csr(minstret, 0);
     spx_hw_exec(out_hw, pub_seed, addr, payload, v->n, v->n, funct7, 0);
     c_hw = (uint32_t)read_csr(mcycle);
+    i_hw = (uint32_t)read_csr(minstret);
 
     if (sw_cycles != NULL) {
         *sw_cycles = c_sw;
     }
     if (hw_cycles != NULL) {
         *hw_cycles = c_hw;
+    }
+    if (sw_instret != NULL) {
+        *sw_instret = i_sw;
+    }
+    if (hw_instret != NULL) {
+        *hw_instret = i_hw;
     }
 
 #if SW_TEST_ENABLED
@@ -77,16 +90,18 @@ int main(void) {
     for (size_t i = 0; i < sizeof(k_variants) / sizeof(k_variants[0]); i++) {
         uint32_t c_sw = 0;
         uint32_t c_hw = 0;
-        int err = run_prf_case(&k_variants[i], &c_sw, &c_hw);
+        uint32_t i_sw = 0;
+        uint32_t i_hw = 0;
+        int err = run_prf_case(&k_variants[i], &c_sw, &c_hw, &i_sw, &i_hw);
 
         sw_total += c_sw;
         hw_total += c_hw;
 
         printf("%s: %s", k_variants[i].name, err ? "FAIL" : "PASS");
 #if SW_TEST_ENABLED
-        printf(" | SW=%u HW=%u", c_sw, c_hw);
+        printf(" | SW=%u HW=%u | SWi=%u HWi=%u", c_sw, c_hw, i_sw, i_hw);
 #else
-        printf(" | HW=%u", c_hw);
+        printf(" | HW=%u HWi=%u", c_hw, i_hw);
 #endif
         printf("\n");
 

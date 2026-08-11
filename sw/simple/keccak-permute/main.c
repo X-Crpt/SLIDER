@@ -234,6 +234,8 @@ int main(void) {
     uint64_t in_state[25];
     uint32_t cycles_sw = 0;
     uint32_t cycles_hw = 0;
+    uint32_t instret_sw = 0;
+    uint32_t instret_hw = 0;
 
     /* Build a deterministic input state. */
     memset(in_state, 0, sizeof(in_state));
@@ -251,15 +253,19 @@ int main(void) {
 
     /* ---- SW ---- */
     write_csr(mcycle, 0);
+    write_csr(minstret, 0);
     KeccakF1600_StatePermute(sw_state);
     cycles_sw = (uint32_t)read_csr(mcycle);
-    printf("[SW] cycles = %u\n", cycles_sw);
+    instret_sw = (uint32_t)read_csr(minstret);
+    printf("[SW] cycles = %u | instret = %u\n", cycles_sw, instret_sw);
 
     /* ---- HW ---- */
     write_csr(mcycle, 0);
+    write_csr(minstret, 0);
     keccak_hw_full_permute(in_state, hw_state);
     cycles_hw = (uint32_t)read_csr(mcycle);
-    printf("[HW] cycles = %u\n", cycles_hw);
+    instret_hw = (uint32_t)read_csr(minstret);
+    printf("[HW] cycles = %u | instret = %u\n", cycles_hw, instret_hw);
 
     /* ---- Compare ---- */
     int mismatches = 0;

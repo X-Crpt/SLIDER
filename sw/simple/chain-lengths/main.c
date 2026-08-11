@@ -75,22 +75,28 @@ static void print_message(const uint8_t *msg, uint32_t len, const char *label) {
 /**
  * Test software implementation for a given variant
  */
-static int test_sw_variant(const test_vector_t *tv, uint32_t *cycles_out) {
+static int test_sw_variant(const test_vector_t *tv, uint32_t *cycles_out, uint32_t *instret_out) {
     uint8_t result[67];  // Max length is 67 for 256f
     uint32_t cycles_sw = 0;
-    
+    uint32_t instret_sw = 0;
+
     printf("\n=== SW Test: %s ===\n", tv->name);
     print_message(tv->msg, tv->msg_bytes, "Input message");
-    
-    // Software chain_lengths with cycle counting
+
+    // Software chain_lengths with cycle/instruction counting
     write_csr(mcycle, 0);
+    write_csr(minstret, 0);
     chain_lengths_sw(result, tv->len1, tv->len2, tv->msg);
     cycles_sw = (uint32_t)read_csr(mcycle);
+    instret_sw = (uint32_t)read_csr(minstret);
     if (cycles_out != NULL) {
         *cycles_out = cycles_sw;
     }
-    
-    printf("%s SW Cycles: %u\n", tv->name, cycles_sw);
+    if (instret_out != NULL) {
+        *instret_out = instret_sw;
+    }
+
+    printf("%s SW Cycles: %u | Instret: %u\n", tv->name, cycles_sw, instret_sw);
     
     print_nibbles(result, tv->len, "SW Result");
     
@@ -101,17 +107,19 @@ static int test_sw_variant(const test_vector_t *tv, uint32_t *cycles_out) {
 /**
  * Test hardware implementation for a given variant
  */
-static int test_hw_variant(const test_vector_t *tv, uint32_t variant_idx, uint32_t *cycles_out) {
+static int test_hw_variant(const test_vector_t *tv, uint32_t variant_idx, uint32_t *cycles_out, uint32_t *instret_out) {
     uint8_t result[67];  // Max length is 67 for 256f
     uint32_t cycles_hw = 0;
+    uint32_t instret_hw = 0;
     const uint32_t *msg32 = (const uint32_t *)tv->msg;
     (void)variant_idx;
-    
+
     printf("\n=== HW Test: %s ===\n", tv->name);
     print_message(tv->msg, tv->msg_bytes, "Input message");
-    
-    // Hardware chain_lengths with cycle counting - use optimized variant-specific functions
+
+    // Hardware chain_lengths with cycle/instruction counting - use optimized variant-specific functions
     write_csr(mcycle, 0);
+    write_csr(minstret, 0);
     if (tv->len1 == 32) {
         chain_lengths_hw_128f(result, msg32);
     } else if (tv->len1 == 48) {
@@ -120,11 +128,15 @@ static int test_hw_variant(const test_vector_t *tv, uint32_t variant_idx, uint32
         chain_lengths_hw_256f(result, msg32);
     }
     cycles_hw = (uint32_t)read_csr(mcycle);
+    instret_hw = (uint32_t)read_csr(minstret);
     if (cycles_out != NULL) {
         *cycles_out = cycles_hw;
     }
-    
-    printf("%s HW Cycles: %u\n", tv->name, cycles_hw);
+    if (instret_out != NULL) {
+        *instret_out = instret_hw;
+    }
+
+    printf("%s HW Cycles: %u | Instret: %u\n", tv->name, cycles_hw, instret_hw);
     
     print_nibbles(result, tv->len, "HW Result");
     
@@ -143,10 +155,13 @@ int main(void) {
     for (uint32_t i = 0; i < NUM_TEST_VECTORS; i++) {
         uint32_t cycles_sw = 0;
         uint32_t cycles_hw = 0;
-        total_errors += test_sw_variant(&test_vectors[i], &cycles_sw);
-        total_errors += test_hw_variant(&test_vectors[i], i, &cycles_hw);
+        uint32_t instret_sw = 0;
+        uint32_t instret_hw = 0;
+        total_errors += test_sw_variant(&test_vectors[i], &cycles_sw, &instret_sw);
+        total_errors += test_hw_variant(&test_vectors[i], i, &cycles_hw, &instret_hw);
 #if SW_TEST_ENABLED
-        printf("SW Cycles: %u | HW Cycles: %u\n", cycles_sw, cycles_hw);
+        printf("SW Cycles: %u | HW Cycles: %u | SW Instret: %u | HW Instret: %u\n",
+               cycles_sw, cycles_hw, instret_sw, instret_hw);
         if (cycles_sw > 0) {
             printf("Speedup: %u.%02ux\n", cycles_sw / cycles_hw, ((cycles_sw * 100) / cycles_hw) % 100);
         }

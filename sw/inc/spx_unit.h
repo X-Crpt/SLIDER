@@ -1,0 +1,206 @@
+/*
+ * spx_unit.h - C inline wrappers for the spx-unit coprocessor ISA
+ *
+ * The spx-unit coprocessor exposes 19 custom instructions on RISC-V opcode 0x5B.
+ * All operands are 64-bit (XLEN=64).  The IP throttles `issue_ready` until
+ * each multi-cycle operation finishes, so no NOP padding is required around
+ * KSTART / KPERM / THASH* / PRF / CL_*.
+ *
+ * Encoding map (funct3 / funct7):
+ *   f3=0,f7=0x00 OP_INIT            init register file
+ *   f3=0,f7=0x01 OP_KSTART          start a Keccak absorb sequence
+ *   f3=0,f7=0x02 OP_KPERM           Keccak-f[1600] in place
+ *   f3=1,f7=0x00 OP_LOAD     rs1=data64 rs2=lane_idx
+ *   f3=1,f7=0x01 OP_KABSORB  rs1=data64 rs2=lane_idx (XOR into lane)
+ *   f3=2,f7=0x00 OP_STORE    rd=lane    rs1=lane_idx
+ *   f3=2,f7=0x01 OP_KREAD3   rd=word    rs1=byte_off
+ *   f3=3,f7=0x00 OP_THASH1   rs2=simple_flag (SHAKE128/SHA3-256 depending on cfg)
+ *   f3=3,f7=0x01 OP_THASH2   rs2=simple_flag
+ *   f3=3,f7=0x02 OP_PRF_ADDR
+ *   f3=3,f7=0x03..0x08      THASH/PRF 192/256 variants
+ *   f3=4,f7=0x00..0x02      CL_128F / CL_192F / CL_256F
+ */
+
+#ifndef SPX_UNIT_H
+#define SPX_UNIT_H
+
+#include <stdint.h>
+
+/* ---------------- Keccak primitives ---------------- */
+
+static inline void spx_unit_init(void) {
+    __asm__ volatile (".insn r 0x5b, 0, 0x00, x0, x0, x0" ::: "memory");
+}
+
+static inline void spx_unit_kstart(void) {
+    __asm__ volatile (".insn r 0x5b, 0, 0x01, x0, x0, x0" ::: "memory");
+}
+
+static inline void spx_unit_kperm(void) {
+    __asm__ volatile (".insn r 0x5b, 0, 0x02, x0, x0, x0" ::: "memory");
+}
+
+static inline void spx_unit_load(uint64_t data, uint64_t idx) {
+    __asm__ volatile (".insn r 0x5b, 1, 0x00, x0, %0, %1"
+                      :: "r"(data), "r"(idx) : "memory");
+}
+
+static inline void spx_unit_kabsorb(uint64_t data, uint64_t idx) {
+    __asm__ volatile (".insn r 0x5b, 1, 0x01, x0, %0, %1"
+                      :: "r"(data), "r"(idx) : "memory");
+}
+
+static inline uint64_t spx_unit_store(uint64_t idx) {
+    uint64_t r;
+    __asm__ volatile (".insn r 0x5b, 2, 0x00, %0, %1, x0"
+                      : "=r"(r) : "r"(idx) : "memory");
+    return r;
+}
+
+/* OP_LOAD2: 128-bit dual-lane load.
+ *   lane[idx]   <- lo  (rs1)
+ *   lane[idx+1] <- hi  (rs2)
+ *   funct3 = 5, R4-type with rs3 = idx (saturated to NUM_LANES-1 in HW).
+ */
+static inline void spx_unit_load2(uint64_t lo, uint64_t hi, uint64_t idx) {
+    __asm__ volatile (".insn r4 0x5b, 5, 0, x0, %0, %1, %2"
+                      :: "r"(lo), "r"(hi), "r"(idx) : "memory");
+}
+
+static inline uint64_t spx_unit_kread3(uint64_t byte_off) {
+    uint64_t r;
+    __asm__ volatile (".insn r 0x5b, 2, 0x01, %0, %1, x0"
+                      : "=r"(r) : "r"(byte_off) : "memory");
+    return r;
+}
+
+/* ---------------- SPHINCS+ thash / prf -------------- */
+
+static inline void spx_unit_thash1(uint64_t simple) {
+    __asm__ volatile (".insn r 0x5b, 3, 0x00, x0, x0, %0"
+                      :: "r"(simple) : "memory");
+}
+static inline void spx_unit_thash2(uint64_t simple) {
+    __asm__ volatile (".insn r 0x5b, 3, 0x01, x0, x0, %0"
+                      :: "r"(simple) : "memory");
+}
+static inline void spx_unit_prf_addr(void) {
+    __asm__ volatile (".insn r 0x5b, 3, 0x02, x0, x0, x0" ::: "memory");
+}
+/* 192/256 variants */
+static inline void spx_unit_thash1_192(uint64_t simple) {
+    __asm__ volatile (".insn r 0x5b, 3, 0x03, x0, x0, %0" :: "r"(simple) : "memory");
+}
+static inline void spx_unit_thash2_192(uint64_t simple) {
+    __asm__ volatile (".insn r 0x5b, 3, 0x04, x0, x0, %0" :: "r"(simple) : "memory");
+}
+static inline void spx_unit_prf_addr_192(void) {
+    __asm__ volatile (".insn r 0x5b, 3, 0x07, x0, x0, x0" ::: "memory");
+}
+static inline void spx_unit_thash1_256(uint64_t simple) {
+    __asm__ volatile (".insn r 0x5b, 3, 0x05, x0, x0, %0" :: "r"(simple) : "memory");
+}
+static inline void spx_unit_thash2_256(uint64_t simple) {
+    __asm__ volatile (".insn r 0x5b, 3, 0x06, x0, x0, %0" :: "r"(simple) : "memory");
+}
+static inline void spx_unit_prf_addr_256(void) {
+    __asm__ volatile (".insn r 0x5b, 3, 0x08, x0, x0, x0" ::: "memory");
+}
+
+/* ---------------- WOTS+ chain lengths --------------- */
+
+static inline void spx_unit_cl_128f(void) {
+    __asm__ volatile (".insn r 0x5b, 4, 0x00, x0, x0, x0" ::: "memory");
+}
+static inline void spx_unit_cl_192f(void) {
+    __asm__ volatile (".insn r 0x5b, 4, 0x01, x0, x0, x0" ::: "memory");
+}
+static inline void spx_unit_cl_256f(void) {
+    __asm__ volatile (".insn r 0x5b, 4, 0x02, x0, x0, x0" ::: "memory");
+}
+
+/* ---------------- HORCRUX legacy compat layer ----------------
+ *
+ * The legacy HORCRUX register file was 50 x 32-bit; the new IP exposes
+ * 25 x 64-bit lanes.  All HORCRUX wrappers below assume the old caller
+ * uses an even 32-bit index `idx32` paired with an adjacent word, which
+ * is the layout produced by every HORCRUX assembly source we ported.
+ *
+ *   lane64 = ((uint64_t)hi << 32) | lo
+ *   lane_idx = idx32 / 2
+ */
+
+static inline void cus_load(uint32_t lo, uint32_t hi, uint32_t idx32) {
+    uint64_t v = ((uint64_t)hi << 32) | (uint64_t)lo;
+    spx_unit_load(v, (uint64_t)(idx32 >> 1));
+}
+
+static inline uint32_t cus_store(uint32_t idx32) {
+    uint64_t v = spx_unit_store((uint64_t)(idx32 >> 1));
+    return (idx32 & 1u) ? (uint32_t)(v >> 32) : (uint32_t)v;
+}
+
+/* 64-bit native load/store: one lane per call (no HORCRUX 32-bit pairing). */
+static inline void cus_load64(uint64_t v, uint32_t lane_idx) {
+    spx_unit_load(v, (uint64_t)lane_idx);
+}
+
+static inline uint64_t cus_store64(uint32_t lane_idx) {
+    return spx_unit_store((uint64_t)lane_idx);
+}
+
+/* 128-bit dual-lane load: writes lane[lane_idx] = lo and lane[lane_idx+1] = hi
+ * in a single coprocessor instruction (one issue cycle). */
+static inline void cus_load2(uint64_t lo, uint64_t hi, uint32_t lane_idx) {
+    spx_unit_load2(lo, hi, (uint64_t)lane_idx);
+}
+
+/* Legacy 32-bit-pair flavour: equivalent to two cus_load() calls but issued
+ * as ONE OP_LOAD2 (halves the load cycles).  idx32 must be even. */
+static inline void cus_load2_pair(uint32_t lo_lo, uint32_t lo_hi,
+                                  uint32_t hi_lo, uint32_t hi_hi,
+                                  uint32_t idx32) {
+    uint64_t lo64 = ((uint64_t)lo_hi << 32) | (uint64_t)lo_lo;
+    uint64_t hi64 = ((uint64_t)hi_hi << 32) | (uint64_t)hi_lo;
+    spx_unit_load2(lo64, hi64, (uint64_t)(idx32 >> 1));
+}
+
+static inline void keccak_hw_init(void) { spx_unit_init(); }
+
+static inline void keccak_hw_absorb_xor(uint32_t lo, uint32_t hi, uint32_t idx32) {
+    uint64_t v = ((uint64_t)hi << 32) | (uint64_t)lo;
+    spx_unit_kabsorb(v, (uint64_t)(idx32 >> 1));
+}
+
+static inline void keccak_hw_permute(void) {
+    /* Old PERMUTE = single Keccak-f in place. */
+    spx_unit_kperm();
+}
+
+/* Old keccak_hw_start: combined absorb+permute trigger.  In the new ISA we
+ * model that as KSTART followed by KPERM. */
+static inline void keccak_hw_start(void) {
+    spx_unit_kstart();
+    spx_unit_kperm();
+}
+
+static inline uint32_t keccak_hw_store_word(uint32_t idx32) {
+    return cus_store(idx32);
+}
+
+/* Read 3 consecutive bytes starting at byte_off into the low 24 bits. */
+static inline uint32_t keccak_hw_read3(uint32_t byte_off) {
+    return (uint32_t)(spx_unit_kread3((uint64_t)byte_off) & 0x00FFFFFFu);
+}
+
+/* HORCRUX names for the chain-length variants. */
+static inline void cl_compute_128f(void) { spx_unit_cl_128f(); }
+static inline void cl_compute_192f(void) { spx_unit_cl_192f(); }
+static inline void cl_compute_256f(void) { spx_unit_cl_256f(); }
+
+/* HORCRUX names for the SPHINCS+ ops (default / "robust" form). */
+static inline void thash1_hw_compute(void)    { spx_unit_thash1(0); }
+static inline void thash2_hw_compute(void)    { spx_unit_thash2(0); }
+static inline void prf_addr_hw_compute(void)  { spx_unit_prf_addr();  }
+
+#endif /* SPX_UNIT_H */

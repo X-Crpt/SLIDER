@@ -18,16 +18,21 @@ export RISCV_DV_ROOT="$ROOT_PROJECT/verif/sim/dv"
 export CVA6_DV_ROOT="$ROOT_PROJECT/verif/env/corev-dv"
 
 
-# Set RISCV toolchain-related variables
-# Respect a RISCV already exported by the caller; otherwise fall back to
-# the VLSI-Lab server toolchain. Export your own RISCV (and the
-# VERILATOR_INSTALL_DIR/SPIKE_* vars below) before sourcing this script
-# to point at a local toolchain instead of editing this file.
+# Set RISCV toolchain-related variables.
+# Priority: a RISCV already exported by the caller > the VLSI-Lab server
+# toolchain (if present) > a toolchain built locally under ~/tools (the
+# layout produced by cva6/util/toolchain-builder). Export your own RISCV
+# (and the VERILATOR_INSTALL_DIR/SPIKE_* vars below) before sourcing this
+# script to point anywhere else without editing this file.
 if [ -z "$RISCV" ]; then
-  export RISCV="/software/riscv/riscv64-cva6"                         ##@VLSI-Lab Server
+  if [ -d "/software/riscv/riscv64-cva6" ]; then
+    export RISCV="/software/riscv/riscv64-cva6"                       ##@VLSI-Lab Server
+  elif [ -d "$HOME/tools/riscv64" ]; then
+    export RISCV="$HOME/tools/riscv64"
+  fi
 fi
 if [ -z "$RISCV" ]; then
-  echo "Error: RISCV variable undefined."
+  echo "Error: RISCV variable undefined (no toolchain found; export RISCV yourself)."
   return
 fi
 #export RISCV="/home/alessandra.dolmeta/cva6/old/cva6/util/riscv_toolchain"
@@ -68,13 +73,21 @@ fi
 # export SPIKE_PATH="$SPIKE_INSTALL_DIR"/bin
 
 if [ -z "$VERILATOR_INSTALL_DIR" ]; then
-  export VERILATOR_INSTALL_DIR="/software/cva6/verilator-v5.008"      ##@VLSI-Lab Server
+  if [ -d "/software/cva6/verilator-v5.008" ]; then
+    export VERILATOR_INSTALL_DIR="/software/cva6/verilator-v5.008"    ##@VLSI-Lab Server
+  elif [ -d "$HOME/tools/verilator-v5.008" ]; then
+    export VERILATOR_INSTALL_DIR="$HOME/tools/verilator-v5.008"
+  fi
 fi
 if [ -z "$SPIKE_SRC_DIR" ]; then
   export SPIKE_SRC_DIR="/software/cva6/riscv-isa-sim"                 ##@VLSI-Lab Server
 fi
 if [ -z "$SPIKE_INSTALL_DIR" ]; then
-  export SPIKE_INSTALL_DIR="/software/spike/spike"                    ##@VLSI-Lab Server
+  if [ -d "/software/spike/spike" ]; then
+    export SPIKE_INSTALL_DIR="/software/spike/spike"                  ##@VLSI-Lab Server
+  elif [ -d "$HOME/tools/spike" ]; then
+    export SPIKE_INSTALL_DIR="$HOME/tools/spike"
+  fi
 fi
 export SPIKE_PATH="$SPIKE_INSTALL_DIR/bin"
 

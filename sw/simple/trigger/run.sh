@@ -118,5 +118,5 @@ if [[ -n "${TRACE_FAST:-}" ]]; then
 fi
 
 # Do not exit the calling shell on failure: return RC if sourced,
-# otherwise just leave RC in $? without slamming the terminal closed.
-return $RC 2>/dev/null || true
+# otherwise just leave the real exit code without slamming the terminal closed.
+return $RC 2>/dev/null || exit $RC

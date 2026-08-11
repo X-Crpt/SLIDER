@@ -98,4 +98,7 @@ cflags=(
 RC=$?
 
 cd "$REPO_ROOT" || true
+if [[ "$RC" -ne 0 ]]; then
+    echo "Error: '$TEST_NAME' failed (exit code $RC)" >&2
+fi
 return "$RC" 2>/dev/null || exit "$RC"

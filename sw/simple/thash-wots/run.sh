@@ -91,4 +91,10 @@ cflags=(
 RC=$?
 
 cd "$REPO_ROOT"
-exit $RC
+if (( RC != 0 )); then
+    echo "Error: '$TEST_NAME' failed (exit code $RC)" >&2
+fi
+
+# Do not exit the calling shell on failure: return RC if sourced,
+# otherwise just leave the real exit code without slamming the terminal closed.
+return $RC 2>/dev/null || exit $RC

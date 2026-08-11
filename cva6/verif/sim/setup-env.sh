@@ -19,12 +19,17 @@ export CVA6_DV_ROOT="$ROOT_PROJECT/verif/env/corev-dv"
 
 
 # Set RISCV toolchain-related variables.
-# Priority: a RISCV already exported by the caller > the VLSI-Lab server
-# toolchain (if present) > a toolchain built locally under ~/tools (the
-# layout produced by cva6/util/toolchain-builder). Export your own RISCV
-# (and the VERILATOR_INSTALL_DIR/SPIKE_* vars below) before sourcing this
-# script to point anywhere else without editing this file.
-if [ -z "$RISCV" ]; then
+# Priority: a RISCV already exported by the caller (and actually present
+# on disk) > the VLSI-Lab server toolchain (if present) > a toolchain
+# built locally under ~/tools (the layout produced by
+# cva6/util/toolchain-builder). Checking "present on disk", not just
+# "non-empty", matters because this script is meant to be sourced: a
+# stale/wrong RISCV exported by an earlier `source` of this same script
+# (e.g. before a toolchain was installed, or on a different machine)
+# would otherwise stick around in your shell forever and never get
+# re-detected. Export your own RISCV (and the VERILATOR_INSTALL_DIR/
+# SPIKE_* vars below) before sourcing this script to point anywhere else.
+if [ -z "$RISCV" ] || [ ! -d "$RISCV/bin" ]; then
   if [ -d "/software/riscv/riscv64-cva6" ]; then
     export RISCV="/software/riscv/riscv64-cva6"                       ##@VLSI-Lab Server
   elif [ -d "$HOME/tools/riscv64" ]; then
@@ -72,7 +77,7 @@ fi
 # export SPIKE_INSTALL_DIR="$ROOT_PROJECT"/tools/spike
 # export SPIKE_PATH="$SPIKE_INSTALL_DIR"/bin
 
-if [ -z "$VERILATOR_INSTALL_DIR" ]; then
+if [ -z "$VERILATOR_INSTALL_DIR" ] || [ ! -d "$VERILATOR_INSTALL_DIR/bin" ]; then
   if [ -d "/software/cva6/verilator-v5.008" ]; then
     export VERILATOR_INSTALL_DIR="/software/cva6/verilator-v5.008"    ##@VLSI-Lab Server
   elif [ -d "$HOME/tools/verilator-v5.008" ]; then
@@ -82,7 +87,7 @@ fi
 if [ -z "$SPIKE_SRC_DIR" ]; then
   export SPIKE_SRC_DIR="/software/cva6/riscv-isa-sim"                 ##@VLSI-Lab Server
 fi
-if [ -z "$SPIKE_INSTALL_DIR" ]; then
+if [ -z "$SPIKE_INSTALL_DIR" ] || [ ! -d "$SPIKE_INSTALL_DIR" ]; then
   if [ -d "/software/spike/spike" ]; then
     export SPIKE_INSTALL_DIR="/software/spike/spike"                  ##@VLSI-Lab Server
   elif [ -d "$HOME/tools/spike" ]; then
